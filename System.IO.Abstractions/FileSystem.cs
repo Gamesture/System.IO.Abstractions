@@ -1,4 +1,6 @@
-﻿namespace System.IO.Abstractions
+﻿using System.Threading;
+
+namespace System.IO.Abstractions
 {
     [Serializable]
     public class FileSystem : IFileSystem
@@ -33,11 +35,32 @@
             get { return directoryInfoFactory ?? (directoryInfoFactory = new DirectoryInfoFactory()); }
         }
 
-        private readonly Lazy<DriveInfoFactory> driveInfoFactory = new Lazy<DriveInfoFactory>(() => new DriveInfoFactory());
+        private readonly object driveInfoFactoryLock = new object();
+        private DriveInfoFactory driveInfoFactory;
 
         public IDriveInfoFactory DriveInfo
         {
-            get { return driveInfoFactory.Value; }
+            get
+            {
+                Thread.MemoryBarrier();
+                if (driveInfoFactory != null)
+                {
+                    return driveInfoFactory;
+                }
+                else
+                {
+                    lock (driveInfoFactoryLock)
+                    {
+                        if (driveInfoFactory != null)
+                        {
+                            return driveInfoFactory;
+                        }
+                        
+                        driveInfoFactory = new DriveInfoFactory();
+                        return driveInfoFactory;
+                    }
+                }
+            }
         }
     }
 }
